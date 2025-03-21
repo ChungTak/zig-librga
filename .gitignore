@@ -1,6 +1,4 @@
 .zig-cache/
-<<<<<<< HEAD
 zig-out/
-=======
-zig-out/
->>>>>>> Initial commit  binding librga version to 1.10.3_[1]
+.deps/
+.vscode/
