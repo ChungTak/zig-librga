@@ -139,7 +139,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // 获取librga库路径选项
-    const librga_lib_dir = b.option([]const u8, "LIBRGA_LIB_DIR", "Path to librga library directory");
+    const librga_lib_dir = b.option([]const u8, "RK_LIBRGA_ROOT_DIR", "Path to librga library directory");
 
     // 获取RK_LIBRGA_ROOT_DIR环境变量
     const rk_librga_root_dir = std.process.getEnvVarOwned(std.heap.page_allocator, "RK_LIBRGA_ROOT_DIR") catch null;
