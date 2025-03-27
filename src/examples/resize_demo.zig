@@ -1,5 +1,5 @@
 const std = @import("std");
-const rga = @import("zig-rk-librga");
+const rga = @import("rk-librga");
 const c = rga.c;
 
 const usage_str =

@@ -49,7 +49,7 @@ fn createLibrgaModule(
 ) *std.Build.Module {
 
     // 创建root.zig模块，依赖c/bindings.zig
-    const librga_module = b.addModule("zig-rk-librga", .{
+    const librga_module = b.addModule("rk-librga", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -84,7 +84,7 @@ fn setupLibrgaForExecutable(
     exe.addLibraryPath(lib_path);
     exe.addIncludePath(include_path);
     // 添加模块依赖
-    exe.root_module.addImport("zig-rk-librga", librga_module);
+    exe.root_module.addImport("rk-librga", librga_module);
 }
 
 // 构建示例
@@ -164,7 +164,7 @@ pub fn build(b: *std.Build) void {
 
     // 创建静态库
     const lib = b.addStaticLibrary(.{
-        .name = "zig-rk-librga",
+        .name = "rk-librga",
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,

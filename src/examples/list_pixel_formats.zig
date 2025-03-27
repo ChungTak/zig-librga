@@ -1,5 +1,5 @@
 const std = @import("std");
-const rga = @import("zig-rk-librga");
+const rga = @import("rk-librga");
 
 pub fn main() !void {
     std.debug.print("RGA 支持的像素格式：\n", .{});

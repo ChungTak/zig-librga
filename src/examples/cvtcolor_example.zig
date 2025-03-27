@@ -1,5 +1,5 @@
 const std = @import("std");
-const rga = @import("zig-rk-librga");
+const rga = @import("rk-librga");
 const c = rga.c;
 
 // Debug block - 打印可用的格式 (构建时取消注释)

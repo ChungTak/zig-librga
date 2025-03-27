@@ -1,4 +1,4 @@
-# zig-rk-librga
+# rk-librga
 
 这是一个为 Rockchip RGA (Raster Graphic Acceleration) 库创建的 Zig 语言绑定。RGA 是 Rockchip SoC 上的 2D 硬件加速器。
 
@@ -11,13 +11,13 @@
 ### 使用 zig 包管理器
 
 ```bash
-zig fetch --save git+https://github.com/ChungTak/zig-rk-librga.git
+zig fetch --save git+https://github.com/ChungTak/rk-librga
 ```
 
 然后在你的 `build.zig` 中添加依赖：
 
 ```zig
-const rga_dep = b.dependency("zig-rk-librga", .{});
+const rga_dep = b.dependency("rk-librga", .{});
 exe.addModule("rga", rga_dep.module("rga"));
 ```
 
@@ -25,12 +25,12 @@ exe.addModule("rga", rga_dep.module("rga"));
 
 1. 克隆此仓库：
 ```bash
-git clone https://github.com/ChungTak/zig-rk-librga.git
+git clone https://github.com/ChungTak/rk-librga.git
 ```
 
 2. 初始化并更新 submodule：
 ```bash
-cd zig-rk-librga
+cd rk-librga
 git submodule update --init --recursive
 ```
 
