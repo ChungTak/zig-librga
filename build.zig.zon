@@ -6,7 +6,7 @@
     //
     // It is redundant to include "zig" in this name because it is already
     // within the Zig package namespace.
-    .name = .rk_librga,
+    .name = .zrga,
 
     // This is a [Semantic Version](https://semver.org/).
     // In a future version of Zig it will be used for package deduplication.
@@ -65,10 +65,10 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "runtime",
         "LICENSE",
         "README.md",
     },
 
-    .fingerprint = 0x5d072f4b6c09a4a0,
-    .git_submodule = true,
+    .fingerprint = 0x8c8554a6a74fb807,
 }
