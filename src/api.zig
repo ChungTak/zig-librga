@@ -1,91 +1,57 @@
 const std = @import("std");
-const c = @import("bindings.zig").c;
+const c = @import("c.zig").c;
 
-// 错误类型
+/// 错误类型定义
 pub const Error = error{
+    InitFailed,
     NotSupported,
     OutOfMemory,
     InvalidParam,
     IllegalParam,
-    ErrorVersion,
-    NoSession,
     Failed,
-    Unknown,
 };
 
-// 将C的IM_STATUS转换为Zig错误
-fn statusToError(status: c_int) Error!void {
-    switch (status) {
-        c.IM_STATUS_SUCCESS => return,
-        c.IM_STATUS_NOERROR => return,
-        c.IM_STATUS_NOT_SUPPORTED => return Error.NotSupported,
-        c.IM_STATUS_OUT_OF_MEMORY => return Error.OutOfMemory,
-        c.IM_STATUS_INVALID_PARAM => return Error.InvalidParam,
-        c.IM_STATUS_ILLEGAL_PARAM => return Error.IllegalParam,
-        c.IM_STATUS_ERROR_VERSION => return Error.ErrorVersion,
-        c.IM_STATUS_NO_SESSION => return Error.NoSession,
-        c.IM_STATUS_FAILED => return Error.Failed,
-        else => return Error.Unknown,
-    }
+/// RGA库初始化
+pub fn init() Error!void {
+    // 在librga中不需要显式初始化，但为了遵循资源管理模式，提供此接口
 }
 
-// RGA图像缓冲区结构体
-pub const Buffer = struct {
-    inner: c.rga_buffer_t,
+/// RGA库资源释放
+pub fn deinit() void {
+    // 同样，在librga中不需要显式释放，但为了遵循资源管理模式，提供此接口
+    // 可以调用imsync确保所有操作完成
+    _ = c.imsync();
+}
 
-    // 从虚拟地址创建Buffer
-    pub fn fromVirtualAddr(addr: *anyopaque, width: i32, height: i32, format: i32) Buffer {
-        return Buffer{
-            .inner = c.wrapbuffer_virtualaddr_t(addr, width, height, width, height, format),
-        };
-    }
+/// 将IM_STATUS转换为Zig错误
+fn convertStatus(status: c.IM_STATUS) Error!void {
+    return switch (status) {
+        c.IM_STATUS_SUCCESS, c.IM_STATUS_NOERROR => {},
+        c.IM_STATUS_NOT_SUPPORTED => Error.NotSupported,
+        c.IM_STATUS_OUT_OF_MEMORY => Error.OutOfMemory,
+        c.IM_STATUS_INVALID_PARAM => Error.InvalidParam,
+        c.IM_STATUS_ILLEGAL_PARAM => Error.IllegalParam,
+        else => Error.Failed,
+    };
+}
 
-    // 从虚拟地址创建Buffer（带步长）
-    pub fn fromVirtualAddrWithStride(addr: *anyopaque, width: i32, height: i32, wstride: i32, hstride: i32, format: i32) Buffer {
-        return Buffer{
-            .inner = c.wrapbuffer_virtualaddr_t(addr, width, height, wstride, hstride, format),
-        };
-    }
+/// 获取RGA设备信息
+pub fn getInfo() Error!c.rga_info_table_entry {
+    var info_table: c.rga_info_table_entry = undefined;
+    const status = c.rga_get_info(&info_table);
+    try convertStatus(status);
+    return info_table;
+}
 
-    // 从文件描述符创建Buffer
-    pub fn fromFd(fd: c_int, width: i32, height: i32, format: i32) Buffer {
-        return Buffer{
-            .inner = c.wrapbuffer_fd_t(fd, width, height, width, height, format),
-        };
-    }
-
-    // 从物理地址创建Buffer
-    pub fn fromPhysicalAddr(addr: u64, width: i32, height: i32, format: i32) Buffer {
-        return Buffer{
-            .inner = c.wrapbuffer_physicaladdr_t(@as(*anyopaque, @ptrFromInt(addr)), width, height, width, height, format),
-        };
-    }
-
-    // 设置透明度
-    pub fn setOpacity(self: *Buffer, alpha: u8) void {
-        c.imsetOpacity(&self.inner, alpha);
-    }
-
-    // 设置Alpha位
-    pub fn setAlphaBit(self: *Buffer, alpha0: u8, alpha1: u8) void {
-        c.imsetAlphaBit(&self.inner, alpha0, alpha1);
-    }
-
-    // 设置颜色空间
-    pub fn setColorSpace(self: *Buffer, mode: c_int) void {
-        c.imsetColorSpace(&self.inner, @as(c_uint, @intCast(@as(u32, @bitCast(mode)))));
-    }
-};
-
-// 矩形结构体
+/// 矩形区域定义
 pub const Rect = struct {
-    x: i32,
-    y: i32,
+    x: i32 = 0,
+    y: i32 = 0,
     width: i32,
     height: i32,
 
-    // 转换为C的im_rect
-    fn toImRect(self: Rect) c.im_rect {
+    /// 转换为C API使用的im_rect结构体
+    pub fn toImRect(self: Rect) c.im_rect {
         return c.im_rect{
             .x = self.x,
             .y = self.y,
@@ -95,221 +61,211 @@ pub const Rect = struct {
     }
 };
 
-// 色键范围
-pub const ColorKeyRange = struct {
-    min: i32,
-    max: i32,
+/// 缓冲区定义
+pub const Buffer = struct {
+    // 缓冲区必须至少设置以下一种地址类型
+    virt_addr: ?*anyopaque = null,
+    phys_addr: ?*anyopaque = null,
+    fd: i32 = -1,
 
-    // 转换为C的im_colorkey_range
-    fn toImColorKeyRange(self: ColorKeyRange) c.im_colorkey_range {
-        return c.im_colorkey_range{
-            .min = self.min,
-            .max = self.max,
+    // 图像尺寸信息
+    width: i32,
+    height: i32,
+    wstride: i32, // 可选，默认等于width
+    hstride: i32, // 可选，默认等于height
+    format: i32, // 像素格式
+
+    // 可选参数
+    color_space_mode: i32 = 0,
+    global_alpha: i32 = 255,
+    color: i32 = 0, // 用于颜色填充
+
+    /// 转换为C API使用的rga_buffer_t结构体
+    pub fn toRgaBuffer(self: Buffer) c.rga_buffer_t {
+        var buffer = std.mem.zeroes(c.rga_buffer_t);
+
+        buffer.vir_addr = self.virt_addr;
+        buffer.phy_addr = self.phys_addr;
+        buffer.fd = self.fd;
+
+        buffer.width = self.width;
+        buffer.height = self.height;
+        buffer.wstride = if (self.wstride != 0) self.wstride else self.width;
+        buffer.hstride = if (self.hstride != 0) self.hstride else self.height;
+        buffer.format = self.format;
+
+        buffer.color_space_mode = self.color_space_mode;
+        buffer.global_alpha = self.global_alpha;
+        buffer.color = self.color;
+
+        return buffer;
+    }
+
+    /// 从虚拟地址创建Buffer
+    pub fn fromVirtAddr(virt_addr: *anyopaque, width: i32, height: i32, format: i32, wstride: i32, hstride: i32) Buffer {
+        return .{
+            .virt_addr = virt_addr,
+            .width = width,
+            .height = height,
+            .wstride = wstride,
+            .hstride = hstride,
+            .format = format,
+        };
+    }
+
+    /// 从物理地址创建Buffer
+    pub fn fromPhysAddr(phys_addr: *anyopaque, width: i32, height: i32, format: i32, wstride: i32, hstride: i32) Buffer {
+        return .{
+            .phys_addr = phys_addr,
+            .width = width,
+            .height = height,
+            .wstride = wstride,
+            .hstride = hstride,
+            .format = format,
+        };
+    }
+
+    /// 从文件描述符创建Buffer
+    pub fn fromFd(fd: i32, width: i32, height: i32, format: i32, wstride: i32, hstride: i32) Buffer {
+        return .{
+            .fd = fd,
+            .width = width,
+            .height = height,
+            .wstride = wstride,
+            .hstride = hstride,
+            .format = format,
         };
     }
 };
 
-// 旋转常量
-pub const Rotation = struct {
-    pub const ROTATE_90: c_int = c.IM_HAL_TRANSFORM_ROT_90;
-    pub const ROTATE_180: c_int = c.IM_HAL_TRANSFORM_ROT_180;
-    pub const ROTATE_270: c_int = c.IM_HAL_TRANSFORM_ROT_270;
-};
+/// 调整图像大小
+pub fn resize(src: Buffer, dst: Buffer, fx: f64, fy: f64, interpolation: i32, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
 
-// 翻转常量
-pub const Flip = struct {
-    pub const HORIZONTAL: c_int = c.IM_HAL_TRANSFORM_FLIP_H;
-    pub const VERTICAL: c_int = c.IM_HAL_TRANSFORM_FLIP_V;
-};
-
-// 混合模式常量
-pub const BlendMode = struct {
-    pub const SRC_OVER: c_int = c.IM_ALPHA_BLEND_SRC_OVER;
-    pub const SRC: c_int = c.IM_ALPHA_BLEND_SRC;
-    pub const DST: c_int = c.IM_ALPHA_BLEND_DST;
-    pub const SRC_IN: c_int = c.IM_ALPHA_BLEND_SRC_IN;
-    pub const DST_IN: c_int = c.IM_ALPHA_BLEND_DST_IN;
-    pub const SRC_OUT: c_int = c.IM_ALPHA_BLEND_SRC_OUT;
-    pub const DST_OUT: c_int = c.IM_ALPHA_BLEND_DST_OUT;
-    pub const DST_OVER: c_int = c.IM_ALPHA_BLEND_DST_OVER;
-    pub const SRC_ATOP: c_int = c.IM_ALPHA_BLEND_SRC_ATOP;
-    pub const DST_ATOP: c_int = c.IM_ALPHA_BLEND_DST_ATOP;
-    pub const XOR: c_int = c.IM_ALPHA_BLEND_XOR;
-};
-
-// 颜色空间转换常量
-pub const ColorSpaceMode = struct {
-    pub const DEFAULT: c_int = c.IM_COLOR_SPACE_DEFAULT;
-    pub const YUV_TO_RGB_BT601_LIMIT: c_int = c.IM_YUV_TO_RGB_BT601_LIMIT;
-    pub const YUV_TO_RGB_BT601_FULL: c_int = c.IM_YUV_TO_RGB_BT601_FULL;
-    pub const YUV_TO_RGB_BT709_LIMIT: c_int = c.IM_YUV_TO_RGB_BT709_LIMIT;
-    pub const RGB_TO_YUV_BT601_FULL: c_int = c.IM_RGB_TO_YUV_BT601_FULL;
-    pub const RGB_TO_YUV_BT601_LIMIT: c_int = c.IM_RGB_TO_YUV_BT601_LIMIT;
-    pub const RGB_TO_YUV_BT709_LIMIT: c_int = c.IM_RGB_TO_YUV_BT709_LIMIT;
-};
-
-// 插值模式常量
-pub const InterpolationMode = struct {
-    pub const NEAREST: c_int = c.INTER_NEAREST;
-    pub const LINEAR: c_int = c.INTER_LINEAR;
-    pub const CUBIC: c_int = c.INTER_CUBIC;
-};
-
-// 马赛克模式常量
-pub const MosaicMode = struct {
-    pub const MODE_8: c_int = c.IM_MOSAIC_8;
-    pub const MODE_16: c_int = c.IM_MOSAIC_16;
-    pub const MODE_32: c_int = c.IM_MOSAIC_32;
-    pub const MODE_64: c_int = c.IM_MOSAIC_64;
-    pub const MODE_128: c_int = c.IM_MOSAIC_128;
-};
-
-// 边框类型常量
-pub const BorderType = struct {
-    pub const CONSTANT: c_int = c.IM_BORDER_CONSTANT;
-    pub const REFLECT: c_int = c.IM_BORDER_REFLECT;
-    pub const WRAP: c_int = c.IM_BORDER_WRAP;
-};
-
-// 像素格式常量 (添加常用格式)
-pub const PixelFormat = struct {
-    pub const RGBA_8888: c_int = c.RK_FORMAT_RGBA_8888;
-    pub const BGRA_8888: c_int = c.RK_FORMAT_BGRA_8888;
-    pub const RGBX_8888: c_int = c.RK_FORMAT_RGBX_8888;
-    pub const BGRX_8888: c_int = c.RK_FORMAT_BGRX_8888;
-    pub const RGB_888: c_int = c.RK_FORMAT_RGB_888;
-    pub const BGR_888: c_int = c.RK_FORMAT_BGR_888;
-    pub const RGB_565: c_int = c.RK_FORMAT_RGB_565;
-    pub const BGR_565: c_int = c.RK_FORMAT_BGR_565;
-    pub const YCbCr_420_SP: c_int = c.RK_FORMAT_YCbCr_420_SP;
-    pub const YCrCb_420_SP: c_int = c.RK_FORMAT_YCrCb_420_SP;
-};
-
-//=============================================================================
-// 图像处理函数
-//=============================================================================
-
-// 复制
-pub fn copy(src: Buffer, dst: Buffer, sync: bool) Error!void {
-    const status = c.imcopy_t(src.inner, dst.inner, if (sync) 1 else 0);
-    try statusToError(status);
+    const status = c.imresize_t(src_buffer, dst_buffer, fx, fy, interpolation, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 缩放
-pub fn resize(src: Buffer, dst: Buffer, fx: f64, fy: f64, interpolation: i32, sync: bool) Error!void {
-    const status = c.imresize_t(src.inner, dst.inner, fx, fy, interpolation, if (sync) 1 else 0);
-    try statusToError(status);
-}
-
-// 裁剪
-pub fn crop(src: Buffer, dst: Buffer, rect: Rect, sync: bool) Error!void {
+/// 裁剪图像
+pub fn crop(src: Buffer, dst: Buffer, rect: Rect, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
     const im_rect = rect.toImRect();
-    const status = c.imcrop(src.inner, dst.inner, im_rect, if (sync) 1 else 0, null);
-    try statusToError(status);
+
+    const status = c.imcrop_t(src_buffer, dst_buffer, im_rect, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 平移
-pub fn translate(src: Buffer, dst: Buffer, x: i32, y: i32, sync: bool) Error!void {
-    const status = c.imtranslate(src.inner, dst.inner, x, y, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 旋转图像
+pub fn rotate(src: Buffer, dst: Buffer, rotation: i32, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imrotate_t(src_buffer, dst_buffer, rotation, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 颜色格式转换
-pub fn cvtColor(src: Buffer, dst: Buffer, sfmt: i32, dfmt: i32, mode: i32, sync: bool) Error!void {
-    const status = c.imcvtcolor_t(src.inner, dst.inner, sfmt, dfmt, mode, if (sync) 1 else 0);
-    try statusToError(status);
+/// 翻转图像
+pub fn flip(src: Buffer, dst: Buffer, mode: i32, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imflip_t(src_buffer, dst_buffer, mode, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 旋转
-pub fn rotate(src: Buffer, dst: Buffer, rotation: i32, sync: bool) Error!void {
-    const status = c.imrotate(src.inner, dst.inner, rotation, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 颜色填充
+pub fn fill(buf: Buffer, rect: ?Rect, color: i32, do_sync: bool) Error!void {
+    const buffer = buf.toRgaBuffer();
+    const im_rect = if (rect) |r| r.toImRect() else c.im_rect{ .x = 0, .y = 0, .width = buf.width, .height = buf.height };
+
+    const status = c.imfill_t(buffer, im_rect, color, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 翻转
-pub fn flip(src: Buffer, dst: Buffer, mode: i32, sync: bool) Error!void {
-    const status = c.imflip(src.inner, dst.inner, mode, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 图像混合
+pub fn blend(srcA: Buffer, dst: Buffer, mode: i32, do_sync: bool) Error!void {
+    const srcA_buffer = srcA.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    // 使用空的srcB
+    const srcB_buffer = std.mem.zeroes(c.rga_buffer_t);
+
+    const status = c.imblend_t(srcA_buffer, srcB_buffer, dst_buffer, mode, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 混合
-pub fn blend(src: Buffer, dst: Buffer, mode: i32, sync: bool) Error!void {
-    const status = c.imblend(src.inner, dst.inner, mode, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 三图层混合
+pub fn composite(srcA: Buffer, srcB: Buffer, dst: Buffer, mode: i32, do_sync: bool) Error!void {
+    const srcA_buffer = srcA.toRgaBuffer();
+    const srcB_buffer = srcB.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imblend_t(srcA_buffer, srcB_buffer, dst_buffer, mode, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 合成
-pub fn composite(srcA: Buffer, srcB: Buffer, dst: Buffer, mode: i32, sync: bool) Error!void {
-    const status = c.imcomposite(srcA.inner, srcB.inner, dst.inner, mode, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 颜色空间转换
+pub fn cvtColor(src: Buffer, dst: Buffer, sfmt: i32, dfmt: i32, mode: i32, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imcvtcolor_t(src_buffer, dst_buffer, sfmt, dfmt, mode, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 色键
-pub fn colorKey(src: Buffer, dst: Buffer, range: ColorKeyRange, mode: c_int, sync: bool) Error!void {
-    const im_range = range.toImColorKeyRange();
-    const status = c.imcolorkey(src.inner, dst.inner, im_range, mode, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 复制图像
+pub fn copy(src: Buffer, dst: Buffer, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imcopy_t(src_buffer, dst_buffer, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 填充
-pub fn fill(dst: Buffer, rect: Rect, color: u32, sync: bool) Error!void {
-    const im_rect = rect.toImRect();
-    const status = c.imfill(dst.inner, im_rect, @as(c_int, @intCast(color)), if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 平移图像
+pub fn translate(src: Buffer, dst: Buffer, x: i32, y: i32, do_sync: bool) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+
+    const status = c.imtranslate_t(src_buffer, dst_buffer, x, y, if (do_sync) 1 else 0);
+    try convertStatus(status);
 }
 
-// 马赛克
-pub fn mosaic(img: Buffer, rect: Rect, mosaic_mode: c_int, sync: bool) Error!void {
-    const im_rect = rect.toImRect();
-    const status = c.immosaic(img.inner, im_rect, mosaic_mode, if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 等待所有RGA操作完成
+pub fn sync() Error!void {
+    const status = c.imsync();
+    try convertStatus(status);
 }
 
-// 高斯模糊
-pub fn gaussianBlur(src: Buffer, dst: Buffer, gauss_width: i32, gauss_height: i32, sigma_x: i32, sigma_y: i32, sync: bool) Error!void {
-    const status = c.imgaussianBlur(src.inner, dst.inner, @as(c_int, @intCast(gauss_width)), @as(c_int, @intCast(gauss_height)), @as(c_int, @intCast(sigma_x)), @as(c_int, @intCast(sigma_y)), if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 检查RGA操作是否可行
+pub fn check(src: Buffer, dst: Buffer, src_rect: ?Rect, dst_rect: ?Rect, usage: i32) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
+    const pat_buffer = std.mem.zeroes(c.rga_buffer_t);
+
+    const src_im_rect = if (src_rect) |r| r.toImRect() else c.im_rect{ .x = 0, .y = 0, .width = src.width, .height = src.height };
+    const dst_im_rect = if (dst_rect) |r| r.toImRect() else c.im_rect{ .x = 0, .y = 0, .width = dst.width, .height = dst.height };
+    const pat_im_rect = std.mem.zeroes(c.im_rect);
+
+    const status = c.imcheck_t(src_buffer, dst_buffer, pat_buffer, src_im_rect, dst_im_rect, pat_im_rect, usage);
+    try convertStatus(status);
 }
 
-// 添加边框
-pub fn makeBorder(src: Buffer, dst: Buffer, top: i32, bottom: i32, left: i32, right: i32, border_type: c_int, value: i32, sync: bool) Error!void {
-    const status = c.immakeBorder(src.inner, dst.inner, @as(c_int, @intCast(top)), @as(c_int, @intCast(bottom)), @as(c_int, @intCast(left)), @as(c_int, @intCast(right)), border_type, @as(c_int, @intCast(value)), if (sync) 1 else 0, null);
-    try statusToError(status);
+/// 获取RGA信息字符串
+pub fn queryString(name: i32) []const u8 {
+    return std.mem.span(c.querystring(name));
 }
 
-//=============================================================================
-// 实用工具
-//=============================================================================
+/// 金字塔缩放
+pub fn pyramid(src: Buffer, dst: Buffer, direction: c.IM_SCALE) Error!void {
+    const src_buffer = src.toRgaBuffer();
+    const dst_buffer = dst.toRgaBuffer();
 
-// 导入文件描述符
-pub fn importBufferFd(fd: i32, width: i32, height: i32, format: i32) Error!u32 {
-    const handle = c.importbuffer_fd(fd, width, height, format);
-    if (handle == 0) {
-        return Error.Failed;
-    }
-    return @as(u32, @intCast(handle));
-}
+    const fx: f64 = if (direction == c.IM_UP_SCALE) 0.5 else 2.0;
+    const fy: f64 = if (direction == c.IM_UP_SCALE) 0.5 else 2.0;
 
-// 导入虚拟地址
-pub fn importBufferVirtual(va: *anyopaque, width: i32, height: i32, format: i32) Error!u32 {
-    const handle = c.importbuffer_virtualaddr(va, width, height, format);
-    if (handle == 0) {
-        return Error.Failed;
-    }
-    return @as(u32, @intCast(handle));
-}
-
-// 导入物理地址
-pub fn importBufferPhysical(pa: u64, width: i32, height: i32, format: i32) Error!u32 {
-    const handle = c.importbuffer_physicaladdr(pa, width, height, format);
-    if (handle == 0) {
-        return Error.Failed;
-    }
-    return @as(u32, @intCast(handle));
-}
-
-// 释放缓冲区句柄
-pub fn releaseBufferHandle(handle: u32) Error!void {
-    const status = c.releasebuffer_handle(@as(c.rga_buffer_handle_t, @intCast(handle)));
-    try statusToError(status);
+    const status = c.imresize_t(src_buffer, dst_buffer, fx, fy, c.INTER_LINEAR, 1);
+    try convertStatus(status);
 }

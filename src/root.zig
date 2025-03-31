@@ -1,5 +1,5 @@
 // 导出C绑定
-pub const c = @import("bindings.zig").c;
+pub const c = @import("c.zig").c;
 
 // 导出高级API
 pub const rga = @import("api.zig");
