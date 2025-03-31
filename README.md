@@ -23,11 +23,11 @@
 
 ## 编译
 
-项目通过环境变量`RK_LIBRGA_LIBRARIES`指定RKNPU2库路径的路径:
+项目通过环境变量`LIBRGA_LIBRARIES`指定RKNPU2库路径的路径:
 
 ```bash
 # 示例: 指定自定义库路径
-export RK_LIBRGA_LIBRARIES=/path/to/your/libraries 
+export LIBRGA_LIBRARIES=/path/to/your/libraries 
 zig build
 ```
 
@@ -59,7 +59,7 @@ zig build -Dtarget=arm-linux-android
 在您的项目中使用以下命令添加依赖：
 
 ```bash
-zig fetch --save git+https://github.com/ChungTak/zig-librga
+zig fetch --save git+https://github.com/ChungTak/zig-librga/tree/1.3.2_release
 ```
 
 或者在你的`build.zig.zon`中手动添加依赖:
@@ -76,8 +76,8 @@ zig fetch --save git+https://github.com/ChungTak/zig-librga
 然后在你的 `build.zig` 中添加依赖：
 
 ```zig
-const rga_dep = b.dependency("librga", .{});
-exe.addModule("rga", rga_dep.module("librga"));
+const zrga_dep = b.dependency("zrga", .{});
+exe.addModule("zrga", zrga_dep.module("zrga"));
 ```
 
 ### 手动安装
@@ -91,7 +91,7 @@ git clone -b 1.3.2_release https://github.com/ChungTak/zig-librga.git
 2. 然后在你的 `build.zig.zon` 中添加本地路径(不能是绝对路径)：
 ```zig
     .dependencies = .{
-        .librga = .{
+        .zrga = .{
             .path = ".deps/zig-librga",
         },
     },
@@ -100,8 +100,8 @@ git clone -b 1.3.2_release https://github.com/ChungTak/zig-librga.git
 然后在你的 `build.zig` 中添加依赖：
 
 ```zig
-const rga_dep = b.dependency("librga", .{});
-exe.addModule("rga", rga_dep.module("librga"));
+const zrga_dep = b.dependency("zrga", .{});
+exe.addModule("zrga", zrga_dep.module("zrga"));
 ```
 
 
@@ -113,12 +113,12 @@ exe.addModule("rga", rga_dep.module("librga"));
 
 ```zig
 const std = @import("std");
-const rga = @import("librga");
+const zrga = @import("zrga");
 
 pub fn main() !void {
     // 初始化 RGA
-    try rga.init();
-    defer rga.deinit();
+    try zrga.init();
+    defer zrga.deinit();
     
     // 使用封装的方法
     // ...
@@ -131,13 +131,13 @@ pub fn main() !void {
 
 ```zig
 const std = @import("std");
-const rga = @import("rga");
-const c = rga.c; // 访问原始 C API
+const zrga = @import("zrga");
+const c = zrga.c; // 访问原始 C API
 
 pub fn main() !void {
     // 初始化 RGA
-    try rga.init();
-    defer rga.deinit();
+    try zrga.init();
+    defer zrga.deinit();
     
     // 使用原始 C API
     var src_info: c.rga_info_t = undefined;
@@ -162,18 +162,18 @@ zig build -Dtarget=aarch64-linux-gnu
 
 # 运行完整的RGA功能演示
 # 默认执行缩放演示
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo
 
 # 运行特定的RGA功能演示（支持中英文参数）
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo resize   # 缩放
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo crop     # 裁剪
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo rotate   # 旋转
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo flip     # 翻转
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo translate # 位移
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo blend    # 混合
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo cvtcolor # 颜色空间转换
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo fill     # 颜色填充
-LD_LIBRARY_PATH=runtime/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo all      # 执行所有演示
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo resize   # 缩放
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo crop     # 裁剪
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo rotate   # 旋转
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo flip     # 翻转
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo translate # 位移
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo blend    # 混合
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo cvtcolor # 颜色空间转换
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo fill     # 颜色填充
+LD_LIBRARY_PATH=runtime/librga/lib/aarch64-linux-gnu ./zig-out/bin/rga_demo all      # 执行所有演示
 ```
 
 ## librga 文档

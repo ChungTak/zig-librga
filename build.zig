@@ -10,14 +10,14 @@ fn createLibrgaModule(
 ) *std.Build.Module {
 
     // 创建root.zig模块，依赖c/bindings.zig
-    const librga_module = b.addModule("librga", .{
+    const zrga_module = b.addModule("zrga", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    librga_module.addLibraryPath(lib_path);
-    librga_module.addIncludePath(include_path);
-    return librga_module;
+    zrga_module.addLibraryPath(lib_path);
+    zrga_module.addIncludePath(include_path);
+    return zrga_module;
 }
 
 // 为可执行文件设置librga依赖
@@ -25,7 +25,7 @@ fn setupLibrgaForExecutable(
     exe: *std.Build.Step.Compile,
     lib_path: std.Build.LazyPath,
     include_path: std.Build.LazyPath,
-    librga_module: *std.Build.Module,
+    zrga_module: *std.Build.Module,
 ) void {
     // 链接librga库
     exe.linkSystemLibrary("rga");
@@ -33,7 +33,7 @@ fn setupLibrgaForExecutable(
     exe.addIncludePath(include_path);
 
     // 添加模块依赖
-    exe.root_module.addImport("librga", librga_module);
+    exe.root_module.addImport("zrga", zrga_module);
 }
 
 // 构建示例
@@ -43,7 +43,7 @@ fn buildExamples(
     optimize: std.builtin.OptimizeMode,
     lib_path: std.Build.LazyPath,
     include_path: std.Build.LazyPath,
-    librga_module: *std.Build.Module,
+    zrga_module: *std.Build.Module,
 ) void {
     // 批量构建示例可执行文件
     const examples = [_]struct { name: []const u8, path: []const u8 }{
@@ -60,7 +60,7 @@ fn buildExamples(
         exe.linkLibC();
 
         // 设置example的librga依赖
-        setupLibrgaForExecutable(exe, lib_path, include_path, librga_module);
+        setupLibrgaForExecutable(exe, lib_path, include_path, zrga_module);
 
         // 安装example
         b.installArtifact(exe);
@@ -111,8 +111,8 @@ pub fn build(b: *std.Build) void {
         std.debug.print("Error:rklibrg does not support the  {s}  target.\n", .{target_str});
         return;
     }
-    // 获取RK_LIBRGA_LIBRARIES环境变量
-    const librga_lib = std.process.getEnvVarOwned(std.heap.page_allocator, "RK_LIBRGA_LIBRARIES") catch null;
+    // 获取LIBRGA_LIBRARIES环境变量
+    const librga_lib = std.process.getEnvVarOwned(std.heap.page_allocator, "LIBRGA_LIBRARIES") catch null;
 
     // 获取库文件路径
     const lib_path = std.fmt.allocPrint(std.heap.page_allocator, "runtime/librga/lib/{s}", .{target_str}) catch unreachable;
@@ -122,11 +122,11 @@ pub fn build(b: *std.Build) void {
     const final_include_path = "runtime/librga/include";
 
     // 创建库模块
-    const librga_module = createLibrgaModule(b, target, optimize, b.path(final_lib_path), b.path(final_include_path));
+    const zrga_module = createLibrgaModule(b, target, optimize, b.path(final_lib_path), b.path(final_include_path));
 
     // 创建静态库
     const lib = b.addStaticLibrary(.{
-        .name = "librga",
+        .name = "zrga",
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -160,5 +160,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_main_tests.step);
 
     // 构建示例
-    buildExamples(b, target, optimize, b.path(final_lib_path), b.path(final_include_path), librga_module);
+    buildExamples(b, target, optimize, b.path(final_lib_path), b.path(final_include_path), zrga_module);
 }

@@ -1,6 +1,6 @@
 const std = @import("std");
-const rga = @import("librga");
-const c = rga.c;
+const zrga = @import("zrga");
+const c = zrga.c;
 
 // 图像参数设置
 const SRC_WIDTH = 1280;
@@ -39,7 +39,7 @@ const Timer = struct {
 };
 
 // 创建源缓冲区（红色填充）
-fn createSrcBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format: i32) !struct { buffer: []u8, rga_buffer: rga.Buffer } {
+fn createSrcBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format: i32) !struct { buffer: []u8, rga_buffer: zrga.Buffer } {
     // 运行时确定每个像素的字节数
     var bytes_per_pixel: usize = 0;
     switch (format) {
@@ -71,7 +71,7 @@ fn createSrcBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format
         }
     }
 
-    const rga_buffer = rga.Buffer.fromVirtAddr(buffer.ptr, width, height, format, width, height);
+    const rga_buffer = zrga.Buffer.fromVirtAddr(buffer.ptr, width, height, format, width, height);
 
     return .{
         .buffer = buffer,
@@ -80,7 +80,7 @@ fn createSrcBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format
 }
 
 // 创建目标缓冲区（空白）
-fn createDstBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format: i32) !struct { buffer: []u8, rga_buffer: rga.Buffer } {
+fn createDstBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format: i32) !struct { buffer: []u8, rga_buffer: zrga.Buffer } {
     // 运行时确定每个像素的字节数
     var bytes_per_pixel: usize = 0;
     switch (format) {
@@ -98,7 +98,7 @@ fn createDstBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format
     // 清空缓冲区（全部设为0）
     @memset(buffer, 0);
 
-    const rga_buffer = rga.Buffer.fromVirtAddr(buffer.ptr, width, height, format, width, height);
+    const rga_buffer = zrga.Buffer.fromVirtAddr(buffer.ptr, width, height, format, width, height);
 
     return .{
         .buffer = buffer,
@@ -107,7 +107,7 @@ fn createDstBuffer(allocator: std.mem.Allocator, width: i32, height: i32, format
 }
 
 // 打印执行信息
-fn printJobInfo(op_name: []const u8, elapsed_ns: u64, status: rga.Error!void) !void {
+fn printJobInfo(op_name: []const u8, elapsed_ns: u64, status: zrga.Error!void) !void {
     const stdout = std.io.getStdOut().writer();
 
     if (status) |_| {
@@ -140,11 +140,11 @@ fn demoResize(allocator: std.mem.Allocator) !void {
     try stdout.print("缩放操作: {d}x{d} -> {d}x{d}\n", .{ SRC_WIDTH, SRC_HEIGHT, dst_width, dst_height });
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, 0);
+    try zrga.check(src, dst, null, null, 0);
 
     // 执行缩放
     var timer = try Timer.init();
-    const status = rga.resize(src, dst, 0.5, 0.5, c.INTER_LINEAR, true);
+    const status = zrga.resize(src, dst, 0.5, 0.5, c.INTER_LINEAR, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("缩放", elapsed, status);
@@ -168,7 +168,7 @@ fn demoCrop(allocator: std.mem.Allocator) !void {
     defer allocator.free(dst_buffer);
 
     // 定义裁剪区域（从图像中间裁剪300x300区域）
-    const crop_rect = rga.Rect{
+    const crop_rect = zrga.Rect{
         .x = 100,
         .y = 100,
         .width = 300,
@@ -178,11 +178,11 @@ fn demoCrop(allocator: std.mem.Allocator) !void {
     try stdout.print("裁剪区域: x={d}, y={d}, 宽={d}, 高={d}\n", .{ crop_rect.x, crop_rect.y, crop_rect.width, crop_rect.height });
 
     // 检查操作是否支持
-    try rga.check(src, dst, crop_rect, null, c.IM_CROP);
+    try zrga.check(src, dst, crop_rect, null, c.IM_CROP);
 
     // 执行裁剪
     var timer = try Timer.init();
-    const status = rga.crop(src, dst, crop_rect, true);
+    const status = zrga.crop(src, dst, crop_rect, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("裁剪", elapsed, status);
@@ -218,11 +218,11 @@ fn demoRotate(allocator: std.mem.Allocator) !void {
     try stdout.print("旋转角度: {s}\n", .{rotation_text});
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, rotation);
+    try zrga.check(src, dst, null, null, rotation);
 
     // 执行旋转
     var timer = try Timer.init();
-    const status = rga.rotate(src, dst, rotation, true);
+    const status = zrga.rotate(src, dst, rotation, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("旋转", elapsed, status);
@@ -257,11 +257,11 @@ fn demoFlip(allocator: std.mem.Allocator) !void {
     try stdout.print("翻转类型: {s}\n", .{flip_text});
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, 0);
+    try zrga.check(src, dst, null, null, 0);
 
     // 执行翻转
     var timer = try Timer.init();
-    const status = rga.flip(src, dst, flip_mode, true);
+    const status = zrga.flip(src, dst, flip_mode, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("翻转", elapsed, status);
@@ -291,11 +291,11 @@ fn demoTranslate(allocator: std.mem.Allocator) !void {
     try stdout.print("位移距离: x={d}, y={d}\n", .{ x_offset, y_offset });
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, 0);
+    try zrga.check(src, dst, null, null, 0);
 
     // 执行位移
     var timer = try Timer.init();
-    const status = rga.translate(src, dst, x_offset, y_offset, true);
+    const status = zrga.translate(src, dst, x_offset, y_offset, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("位移", elapsed, status);
@@ -334,11 +334,11 @@ fn demoBlend(allocator: std.mem.Allocator) !void {
     try stdout.print("混合模式: IM_ALPHA_BLEND_SRC_OVER\n", .{});
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, 0);
+    try zrga.check(src, dst, null, null, 0);
 
     // 执行混合
     var timer = try Timer.init();
-    const status = rga.blend(src, dst, blend_mode, true);
+    const status = zrga.blend(src, dst, blend_mode, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("混合", elapsed, status);
@@ -356,7 +356,7 @@ fn demoFill(allocator: std.mem.Allocator) !void {
     defer allocator.free(dst_buffer);
 
     // 填充区域
-    const fill_rect = rga.Rect{
+    const fill_rect = zrga.Rect{
         .x = 100,
         .y = 100,
         .width = 300,
@@ -370,11 +370,11 @@ fn demoFill(allocator: std.mem.Allocator) !void {
     try stdout.print("填充颜色: 蓝色 (0x0000FFFF)\n", .{});
 
     // 检查操作是否支持
-    try rga.check(dst, dst, null, fill_rect, c.IM_COLOR_FILL);
+    try zrga.check(dst, dst, null, fill_rect, c.IM_COLOR_FILL);
 
     // 执行填充
     var timer = try Timer.init();
-    const status = rga.fill(dst, fill_rect, fill_color, true);
+    const status = zrga.fill(dst, fill_rect, fill_color, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("填充", elapsed, status);
@@ -400,11 +400,11 @@ fn demoCvtColor(allocator: std.mem.Allocator) !void {
     try stdout.print("颜色空间转换: RGBA8888 -> NV12(YCbCr_420_SP)\n", .{});
 
     // 检查操作是否支持
-    try rga.check(src, dst, null, null, 0);
+    try zrga.check(src, dst, null, null, 0);
 
     // 执行颜色空间转换
     var timer = try Timer.init();
-    const status = rga.cvtColor(src, dst, c.RK_FORMAT_RGBA_8888, c.RK_FORMAT_YCbCr_420_SP, 0, true);
+    const status = zrga.cvtColor(src, dst, c.RK_FORMAT_RGBA_8888, c.RK_FORMAT_YCbCr_420_SP, 0, true);
     const elapsed = try timer.elapsed();
 
     try printJobInfo("颜色空间转换", elapsed, status);
@@ -417,11 +417,11 @@ pub fn main() !void {
     try stdout.print("==============\n", .{});
 
     // 初始化RGA
-    try rga.init();
-    defer rga.deinit();
+    try zrga.init();
+    defer zrga.deinit();
 
     // 获取RGA设备信息
-    const info = try rga.getInfo();
+    const info = try zrga.getInfo();
     try stdout.print("\nRGA设备信息:\n", .{});
     try stdout.print("  版本: {d}\n", .{info.version});
     try stdout.print("  输入分辨率: {d}\n", .{info.input_resolution});

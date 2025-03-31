@@ -2,7 +2,7 @@
 pub const c = @import("c.zig").c;
 
 // 导出高级API
-pub const rga = @import("api.zig");
+pub const zrga = @import("api.zig");
 
 // re-export 主要的类型和常量
-pub usingnamespace rga;
+pub usingnamespace zrga;
